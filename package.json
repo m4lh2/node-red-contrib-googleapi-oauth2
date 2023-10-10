@@ -3,7 +3,9 @@
   "version": "0.3.3",
   "description": "Node-RED node for Google APIs call using OAuth2.",
   "dependencies": {
-    "googleapis": "^126.0.1"
+    "google-auth-library": "^9.1.0",
+    "googleapis": "^126.0.1",
+    "open": "^9.1.0"
   },
   "license": "MIT",
   "keywords": [

@@ -3,12 +3,15 @@ module.exports = function(RED) {
     const crypto = require("crypto");
     const url = require('url');
     const { google } = require('googleapis');
+    const { OAuth2Client } = require('google-auth-library');
+    const http = require('http');
 
     function GoogleNode(n) {
         RED.nodes.createNode(this,n);
         this.displayName = n.displayName;
         this.scopes = n.scopes;
     }
+
     RED.nodes.registerType("google-credentials",GoogleNode,{
         credentials: {
             displayName: {type:"text"},
@@ -19,80 +22,83 @@ module.exports = function(RED) {
             expireTime: {type:"password"}
         }
     });
-
+    
     RED.httpAdmin.get('/google-credentials/auth', function(req, res){
         console.log('google-credentials/auth');
-        if (!req.query.clientId || !req.query.clientSecret ||
-            !req.query.id || !req.query.callback) {
-            res.send(400);
-            return;
-        }
-        const node_id = req.query.id;
-        const callback = req.query.callback;
-        const credentials = {
-            clientId: req.query.clientId,
-            clientSecret: req.query.clientSecret
-        };
+
+        const clientId = req.query.clientId;
+        const clientSecret = req.query.clientSecret;
+        const callbackUri = req.query.callback;
+        const nodeId = req.query.id;
         const scopes = req.query.scopes;
 
-        const csrfToken = crypto.randomBytes(18).toString('base64').replace(/\//g, '-').replace(/\+/g, '_');
-        credentials.csrfToken = csrfToken;
-        credentials.callback = callback;
-        res.cookie('csrf', csrfToken);
-        res.redirect(url.format({
-            protocol: 'https',
-            hostname: 'accounts.google.com',
-            pathname: '/o/oauth2/auth',
-            query: {
-                access_type: 'offline',
-                approval_prompt: 'force',
-                scope: scopes,
-                response_type: 'code',
-                client_id: credentials.clientId,
-                redirect_uri: callback,
-                state: node_id + ":" + csrfToken,
-            }
-        }));
-        RED.nodes.addCredentials(node_id, credentials);
+        console.log('Callback URI:', callbackUri);
+
+        // Add a credentials node, with the secret and id
+        // the rest of the data (access/refresh token etc) will be assigned when google returns them.
+        const credentials = {
+            clientId : clientId,
+            clientSecret: clientSecret,
+            // This is needed later to re-open the client
+            callbackUri: callbackUri
+        };
+
+        RED.nodes.addCredentials(nodeId, credentials);
+
+        // create an oAuth client to authorize the API call.
+        const oAuth2Client = new OAuth2Client(
+            clientId,
+            clientSecret,
+            // This has to match the url in the browser window.
+            callbackUri
+        );
+
+        // Generate the url that will be used for the consent dialog.
+        const authorizeUrl = oAuth2Client.generateAuthUrl({
+            access_type: 'offline',
+            scope: scopes,
+            // Add some data here that will be returned to us in the callback
+            // we need nodeId to access our credentials node and update it.
+            state: nodeId + ':' + crypto.randomBytes(20).toString('base64')
+        });
+
+        // navigate to googles oauth page.
+        res.redirect(authorizeUrl);
     });
 
-    RED.httpAdmin.get('/google-credentials/auth/callback', function(req, res) {
+    // Googles OAuth will respond at this URL with a code in the url
+    // this token needs to be used to get the access token.
+    // the token is refreshed by the main google node.
+    RED.httpAdmin.get('/google-credentials/auth/callback', function(req, res){
         console.log('google-credentials/auth/callback');
-        if (req.query.error) {
-            return res.send("google.error.error", {error: req.query.error, description: req.query.error_description});
-        }
-        var state = req.query.state.split(':');
-        var node_id = state[0];
-        var credentials = RED.nodes.getCredentials(node_id);
-        if (!credentials || !credentials.clientId || !credentials.clientSecret) {
-            console.log("credentials not present?");
-            return res.send("google.error.no-credentials");
-        }
-        if (state[1] !== credentials.csrfToken) {
-            return res.status(401).send("google.error.token-mismatch");
-        }
 
-        const oauth2Client = new google.auth.OAuth2(
+        // pull out the nodeId data we put in the state field in the auth request
+        // and get the credentials node.
+        var state = req.query.state.split(':');
+        var nodeId = state[0];
+
+        var credentials = RED.nodes.getCredentials(nodeId);
+
+        // Create the client again, with the same parameters, and get tokens now 
+        // that we have a code from google.
+        const oauth2Client = new OAuth2Client(
             credentials.clientId,
             credentials.clientSecret,
-            credentials.callback
+            credentials.callbackUri
         );
 
         oauth2Client.getToken(req.query.code)
         .then((value) => {
+            // Save new tokens
             credentials.accessToken = value.tokens.access_token;
             credentials.refreshToken = value.tokens.refresh_token;
             credentials.expireTime = value.tokens.expiry_date;
             credentials.tokenType = value.tokens.token_type;
             credentials.displayName = value.tokens.scope.substr(0, 40);
-
-            delete credentials.csrfToken;
-            delete credentials.callback;
-            RED.nodes.addCredentials(node_id, credentials);
-            res.send('Authorized');
-        })
-        .catch((error) => {
-            return res.send('Could not receive tokens');
         });
+
+        RED.nodes.addCredentials(nodeId, credentials);
+
+        res.send('Authorized');
     });
 };
