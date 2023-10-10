@@ -2,7 +2,7 @@
 
 Node-RED node for Google APIs.
 
-This Node is based on the implementation by [74Labs](https://github.com/74Labs/node-red-contrib-google). It has been updated to use the latest version of the __googleapis__. Further the authorization workflows has been changed to __OAuth2__.
+This is a modified version of [this](https://github.com/pckhib/node-red-contrib-google-oauth2) package, originally based on the implementation by [74Labs](https://github.com/74Labs/node-red-contrib-google). It has been updated to use the latest version of the __googleapis__. Further the authorization workflows has been changed to __OAuth2__.
 
 ## Features
 
