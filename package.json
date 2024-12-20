@@ -1,10 +1,10 @@
 {
-  "name": "@dennip/node-red-google-apis",
+  "name": "@m4lh2/node-red-contrib-googleapi-oauth2",
   "version": "0.3.3",
   "description": "Node-RED node for Google APIs call using OAuth2.",
   "dependencies": {
-    "google-auth-library": "^9.1.0",
-    "googleapis": "^126.0.1",
+    "google-auth-library": "^9.15.0",
+    "googleapis": "^144.0.0",
     "open": "^9.1.0"
   },
   "private": false,
@@ -29,10 +29,11 @@
   },
   "contributors": [
       {"name": "Patrick Hieber"},
-      {"name": "Shazib Hussain"}
+      {"name": "Shazib Hussain"},
+      {"name": "Marcel Hess"}
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/pckhib/node-red-contrib-google-oauth2"
+    "url": "https://github.com/m4lh2/node-red-contrib-googleapi-oauth2"
   }
 }
